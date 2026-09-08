@@ -1,0 +1,21 @@
+# 실시간 메시징 + 통화 시그널링 서버 전용 이미지
+# Next.js 앱과는 별도 프로세스/서비스로 배포합니다 (Railway, Render, Fly.io 등)
+FROM node:20-alpine AS base
+
+WORKDIR /app
+
+# package.json 전체 의존성을 그대로 설치 (Prisma 클라이언트를 realtime-server.js도 함께 씀)
+COPY package.json package-lock.json* ./
+RUN npm install --omit=dev
+
+# Prisma 스키마 + 클라이언트 생성
+COPY prisma ./prisma
+RUN npx prisma generate
+
+# 실시간 서버 코드만 있으면 됨 (Next.js 앱 코드는 이 이미지에 필요 없음)
+COPY server ./server
+
+ENV NODE_ENV=production
+EXPOSE 4000
+
+CMD ["node", "server/realtime-server.js"]

@@ -1,0 +1,55 @@
+# 로컬에서 전체 스택(웹 + 실시간 서버 + DB)을 한 번에 띄워보거나,
+# Vercel/Render 대신 직접 서버(VPS)에 배포할 때 사용합니다.
+#
+# 실행: docker compose up --build
+# 최초 1회 마이그레이션: docker compose exec web npx prisma migrate deploy
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: messenger
+      POSTGRES_PASSWORD: messenger
+      POSTGRES_DB: messenger
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://messenger:messenger@db:5432/messenger
+      JWT_SECRET: ${JWT_SECRET}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_VERIFY_SERVICE_SID: ${TWILIO_VERIFY_SERVICE_SID}
+      AGORA_APP_ID: ${AGORA_APP_ID}
+      AGORA_APP_CERTIFICATE: ${AGORA_APP_CERTIFICATE}
+      NEXT_PUBLIC_REALTIME_URL: ${NEXT_PUBLIC_REALTIME_URL:-http://localhost:4000}
+    ports:
+      - "3000:3000"
+
+  realtime:
+    build:
+      context: .
+      dockerfile: Dockerfile.realtime
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://messenger:messenger@db:5432/messenger
+      JWT_SECRET: ${JWT_SECRET}
+      REALTIME_PORT: 4000
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+    ports:
+      - "4000:4000"
+
+volumes:
+  db-data:

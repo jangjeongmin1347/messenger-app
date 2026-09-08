@@ -1,0 +1,60 @@
+# Render 블루프린트: https://render.com 에서 "New +" -> "Blueprint" -> 이 저장소 연결하면
+# 아래 정의된 서비스 3개(웹, 실시간 서버, DB)가 한 번에 만들어집니다.
+# 배포 후 Render 대시보드에서 TWILIO_*, AGORA_* 값만 채워넣으면 됩니다 (sync: false 항목).
+
+envVarGroups:
+  - name: messenger-shared
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true # 웹/실시간 서버가 같은 값을 공유하도록 그룹으로 묶어둠
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_VERIFY_SERVICE_SID
+        sync: false
+      - key: AGORA_APP_ID
+        sync: false
+      - key: AGORA_APP_CERTIFICATE
+        sync: false
+
+services:
+  # ---- Next.js 웹 앱 ----
+  - type: web
+    name: messenger-web
+    runtime: node
+    plan: free
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npm run start
+    envVarGroups:
+      - messenger-shared
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: messenger-db
+          property: connectionString
+      - key: NEXT_PUBLIC_REALTIME_URL
+        # messenger-realtime 서비스가 만들어진 뒤 실제 URL로 한 번 바꿔줘야 합니다.
+        value: https://messenger-realtime.onrender.com
+
+  # ---- 실시간 메시징 / 통화 시그널링 서버 ----
+  - type: web
+    name: messenger-realtime
+    runtime: node
+    plan: free
+    buildCommand: npm install && npx prisma generate
+    startCommand: node server/realtime-server.js
+    envVarGroups:
+      - messenger-shared
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: messenger-db
+          property: connectionString
+      - key: CORS_ORIGIN
+        # messenger-web 서비스가 만들어진 뒤 실제 도메인으로 채워주세요.
+        value: https://messenger-web.onrender.com
+
+databases:
+  - name: messenger-db
+    plan: free
